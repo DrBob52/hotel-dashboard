@@ -37,6 +37,36 @@ cloud container. Everything else stays in the cloud:
   must be uploaded to the Artifact's asset store (Artifact tool, `asset: true`)
   and the listing's `thumb` set to the returned `/_blob/<id>` URL.
 
+## Mac runner (setup in progress)
+
+Documented building blocks (Claude Code docs, read 2026-10-25):
+
+- Claude in Chrome from Claude Code: `claude --chrome`, or `/chrome` and pick
+  "Enabled by default". Extension 1.0.36+, signed in to the same claude.ai
+  account and organization as Claude Code (`/status` shows it). Actions run in
+  a visible Chrome window; on a login page or CAPTCHA Claude pauses and asks.
+- Remote Control: `claude remote-control --name "Hotel watch" --chrome` in the
+  repo folder. The terminal process must keep running and the Mac must stay
+  awake; about 10 minutes without network makes server mode exit
+  (`claude remote-control --continue` within ~4 hours brings it back). The
+  first run asks to enable Remote Control and to trust the folder. Reachable
+  from the Claude app's Code tab and claude.ai/code.
+- Desktop local scheduled tasks (Desktop 1.1.5368+): Code tab → Scheduled →
+  New task, Advanced → "Only on this computer", local folder = the repo.
+  Custom cron uses the Mac's local time zone (must be America/New_York):
+  `30 7,19 * * *` starts at 7:30am and 7:30pm so results are ready by 8:00.
+  Needs the Desktop app open and the Mac awake (Settings → This computer →
+  Keep computer awake). A run missed during sleep catches up once on wake.
+  Pick a permission mode that won't stall waiting for approval.
+- The docs say cloud scheduled tasks always start a fresh cloud session. Not
+  documented, to be tested: a cloud trigger with `persistent_session_id` set to
+  the Mac's Remote Control session, and the dashboard calling `send_message` to
+  that session.
+- Not documented, to be tested on the Mac: whether local Claude Code has the
+  `ArtifactData` tool (the `Artifact` tool needs CLI v2.1.281+ or Desktop
+  1.13576.0+, signed in with a claude.ai account); whether Claude in Chrome
+  works inside Desktop scheduled tasks.
+
 ## Network policy (cloud environment)
 
 The environment uses a Custom network policy. Besides the default package
