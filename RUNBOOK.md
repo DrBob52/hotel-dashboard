@@ -8,8 +8,34 @@ container, so anything a run needs lives in this repo.
 | Item | State | Verified |
 | --- | --- | --- |
 | marriott.com from the cloud container | **Blocked** by Akamai ("Access Denied", HTTP 403) | 2026-10-25 |
-| Google Maps transit from the cloud container | Works (headless Chromium, no sign-in) | 2026-10-25 |
-| Marriott rate names, banners, URL formats | Not yet recorded (needs a run that can load marriott.com) | |
+| Google Maps transit from the cloud container | Works (headless Chromium, no sign-in), `checker/commute.js` | 2026-10-25 |
+| Dashboard Artifact + database, both criteria sets seeded | Live | 2026-10-25 |
+| Marriott rate names, banners, URL formats | Not yet recorded (needs the Mac runner's first run) | |
+| Schedule (8:00am / 8:00pm ET) and "Run check now" trigger | Not set up yet (depends on the Mac runner) | |
+
+## Architecture
+
+The user chose the Mac fallback: Marriott searching runs in the user's own
+Chrome on their Mac through Claude in Chrome, because marriott.com refuses the
+cloud container. Everything else stays in the cloud:
+
+- **Dashboard**: claude.ai Artifact
+  <https://claude.ai/artifact/WskigVyR4QQ5m8fziTtq2S>. Source:
+  `dashboard/index.html`. Republish from that file (same path keeps the URL).
+  Capabilities: `db`, `user`, `assets`, and `mcp` with the single tool
+  `Claude Code Remote` / `fire_trigger`.
+- **Data**: the Artifact's database. Shapes in `docs/DATA_MODEL.md`. Read and
+  write it with the `ArtifactData` tool and the URL above. Never hardcode
+  listings into the page.
+- **Commute lookups**: `checker/commute.js` (Playwright, Google Maps web).
+  Works from the cloud container; results cached in `commute/<key>` for 30 days.
+- **"Run check now"**: the page writes `runs/<id>` with `status: "requested"`,
+  then calls `fire_trigger` on `config/main.trigger.id` through the viewer's
+  own Claude Code Remote connector. No secret is in the page source. If
+  `config/main.trigger` is null the request is only recorded.
+- **Thumbnails**: the Artifact's CSP blocks external images, so Marriott photos
+  must be uploaded to the Artifact's asset store (Artifact tool, `asset: true`)
+  and the listing's `thumb` set to the returned `/_blob/<id>` URL.
 
 ## Network policy (cloud environment)
 
@@ -43,6 +69,41 @@ Detect it by any of: HTTP status 403 on the document, page title
 
 ## Google Maps transit lookups
 
+Use the module:
+
+```
+node checker/commute.js --origin "<street address>" --dest "230 Vesey Street, New York, NY 10281"
+node checker/commute.js --batch lookups.json   # [{key, origin, destination, arriveBy?}]
+```
+
+It prints JSON (`minutes`, `lines`, `summary`, `walkMinutes`, `departs`,
+`arrives`, `mapsUrl`, `options`). Exit code 3 means Google showed an
+unusual-traffic, CAPTCHA or consent page: stop, mark the commute as unknown,
+and report it. Do not retry or work around it. Allow about 5 to 7 seconds per
+lookup; the module waits 2 to 4 seconds between lookups.
+
+**Always pass the hotel's street address, never its name.** Names are
+ambiguous: "Fairfield Inn & Suites New York Brooklyn" resolved to a hotel near
+Midwood (70 min by express bus) instead of 181 3rd Ave (33 min by the R).
+
+How the page is read (Google's class names are obfuscated; these hooks are
+stable as of 2026-10-25):
+
+- Each route option is a `div[data-trip-index="N"]`.
+- Its text holds the duration (`18 min`, `1 hr 10 min`) and the time range,
+  split across text nodes (`8:23 AM (Wednesday)`, `—`, `8:56 AM`).
+- Subway lines are icons: `img[alt="R"]` with `src` under
+  `maps.gstatic.com/mapfiles/transit/iw2/svg/us-ny-mta/`. PATH and buses are
+  plain text. Generic icons (`Walk`, `Train`, `Bus`) are skipped.
+- Icon-font glyphs (Unicode private-use characters) sit in the text; strip
+  them before parsing.
+- Only the selected option shows `8:43 AM from Grove St` and the walking total
+  (`$3.25  10 min`). To read them for another option, focus it and press
+  Enter: a "Continue your trip" banner covers the lower options and swallows
+  mouse clicks.
+- The walking-only alternative also has a `data-trip-index` but no time range;
+  it counts if it's the shortest (summary `Walk`).
+
 Arrive-by transit directions load from a plain URL, no form driving needed:
 
 ```
@@ -74,9 +135,17 @@ the target time. The duration is door to door (walking, waits and transfers
 included). Record minutes, the line names (e.g. `PATH`), the boarding stop,
 and the URL itself as the card's Google Maps link.
 
-Benchmark result (2026-10-25 lookup, for Wed Nov 4 2026, arrive by 9:00):
-Residence Inn by Marriott Jersey City to 230 Vesey St, New York, NY 10281:
-**18 min**, PATH from Grove St, 10 min walking, $3.25.
+Reference results (2026-10-25, weekday, arrive by 9:00, to 230 Vesey St):
+
+| Origin | Minutes | Route |
+| --- | --- | --- |
+| Residence Inn by Marriott Jersey City (benchmark) | 18 | PATH from Grove St, 10 min walking |
+| 181 3rd Ave, Brooklyn | 33 | R from Union St, 17 min walking |
+| 29-21 41st Ave, Long Island City | 37 | E from Queens Plaza, 12 min walking |
+
+The cloud container has Playwright preinstalled; `require('playwright')`
+works from any directory. Don't `npm install playwright` there (another
+version won't find the preinstalled Chromium).
 
 Commute times are cached per (hotel, destination) and re-checked monthly or
 when a hotel is new.

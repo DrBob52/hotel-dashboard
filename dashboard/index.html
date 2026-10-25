@@ -1,0 +1,1277 @@
+<title>MMP Rate Watch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=Instrument+Sans:wght@400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a lobby board. Status strip on top, then one shelf per criteria set,
+   each with a sideways row of key-card shaped hotel cards. */
+:root {
+  --bg: #F1F3F6;
+  --surface: #FFFFFF;
+  --surface-2: #E8ECF1;
+  --ink: #131B25;
+  --muted: #566376;
+  --line: #D5DBE3;
+  --accent: #8A611E;
+  --accent-strong: #6C4B15;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #F2E7D2;
+  --ok: #1A7849;
+  --ok-soft: #DCF0E4;
+  --warn: #965600;
+  --warn-soft: #FAEAD2;
+  --bad: #B32218;
+  --bad-soft: #FAE0DC;
+  --stale: #6A6356;
+  --shadow: 0 1px 2px rgb(19 27 37 / .06), 0 6px 18px rgb(19 27 37 / .07);
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius: 12px;
+  --card-w: min(318px, calc(100vw - 72px));
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0D1218;
+    --surface: #151D26;
+    --surface-2: #1D2732;
+    --ink: #E5EAF0;
+    --muted: #97A3B2;
+    --line: #27323F;
+    --accent: #D5A550;
+    --accent-strong: #E8BD6D;
+    --accent-ink: #1A1206;
+    --accent-soft: #32270F;
+    --ok: #4CC189;
+    --ok-soft: #112E1E;
+    --warn: #E4A43F;
+    --warn-soft: #32240B;
+    --bad: #EF7367;
+    --bad-soft: #391613;
+    --stale: #A49C8D;
+    --shadow: 0 1px 2px rgb(0 0 0 / .45), 0 8px 22px rgb(0 0 0 / .32);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0D1218;
+  --surface: #151D26;
+  --surface-2: #1D2732;
+  --ink: #E5EAF0;
+  --muted: #97A3B2;
+  --line: #27323F;
+  --accent: #D5A550;
+  --accent-strong: #E8BD6D;
+  --accent-ink: #1A1206;
+  --accent-soft: #32270F;
+  --ok: #4CC189;
+  --ok-soft: #112E1E;
+  --warn: #E4A43F;
+  --warn-soft: #32240B;
+  --bad: #EF7367;
+  --bad-soft: #391613;
+  --stale: #A49C8D;
+  --shadow: 0 1px 2px rgb(0 0 0 / .45), 0 8px 22px rgb(0 0 0 / .32);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 18px 48px;
+  display: grid;
+  gap: 22px;
+}
+a { color: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.num { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* ---------- masthead ---------- */
+.masthead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px 24px;
+  align-items: end;
+  padding-block: 6px 18px;
+  border-bottom: 1px solid var(--line);
+}
+.brand h1 {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 118;
+  font-weight: 760;
+  font-size: clamp(26px, 4.4vw, 38px);
+  letter-spacing: -0.01em;
+  line-height: 1.02;
+  margin: 0;
+  text-wrap: balance;
+}
+.brand .sub {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.board {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.board > * { background: var(--surface); padding: 12px 14px; min-width: 0; }
+.stat .k {
+  display: block;
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 100;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat .v { display: flex; align-items: center; gap: 7px; margin-top: 3px; font-weight: 700; flex-wrap: wrap; }
+.stat .v small { font-weight: 400; color: var(--muted); font-size: 13px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: var(--bad); }
+.dot.live { background: var(--accent); animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+.delta { display: inline-flex; gap: 10px; flex-wrap: wrap; }
+.delta .plus { color: var(--ok); }
+.delta .minus { color: var(--bad); }
+.delta .chg { color: var(--warn); }
+.runcell { display: grid; gap: 6px; align-content: center; justify-items: start; }
+.btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn[disabled] { opacity: .6; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover:not([disabled]) { background: var(--accent-strong); border-color: var(--accent-strong); }
+.btn.quiet { border-color: transparent; background: transparent; padding: 5px 9px; font-size: 13px; color: var(--muted); }
+.btn.quiet:hover { color: var(--ink); background: var(--surface-2); }
+.btn.danger { color: var(--bad); }
+.btn.danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+.runnote { margin: 0; font-size: 12.5px; color: var(--muted); max-width: 34ch; }
+.runnote.ok { color: var(--ok); }
+.runnote.warn { color: var(--warn); }
+.runnote.bad { color: var(--bad); }
+.runnote a { color: var(--accent); }
+
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.toolbar h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 100;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ---------- criteria shelf ---------- */
+.shelf { display: grid; gap: 12px; min-width: 0; }
+.shelf + .shelf { padding-top: 22px; border-top: 1px solid var(--line); }
+.shelf-head { display: grid; gap: 8px; min-width: 0; }
+.shelf-title { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.shelf-title h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 112;
+  font-weight: 720;
+  font-size: clamp(20px, 2.6vw, 25px);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.count {
+  font-family: var(--font-data);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.count.zero { background: var(--surface-2); color: var(--muted); }
+.paused-pill { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); letter-spacing: .03em; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chip b { font-weight: 700; }
+.chip.soft { color: var(--muted); }
+.shelf-meta { display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.shelf-meta .sep { opacity: .5; }
+.shelf-meta .actions { display: inline-flex; gap: 2px; margin-left: auto; }
+details.criteria-text { font-size: 13.5px; color: var(--muted); }
+details.criteria-text summary { cursor: pointer; width: fit-content; }
+details.criteria-text p { white-space: pre-wrap; margin: 8px 0 0; max-width: 75ch; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13.5px;
+  background: var(--warn-soft);
+  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+}
+.banner.bad { background: var(--bad-soft); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+.banner strong { color: var(--warn); }
+.banner.bad strong { color: var(--bad); }
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 2px;
+  padding: 2px 2px 14px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.empty {
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  padding: 22px 18px;
+  display: grid;
+  gap: 4px;
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+}
+.empty strong { font-family: var(--font-display); font-variation-settings: "wdth" 108; font-size: 17px; font-weight: 680; }
+.empty span { color: var(--muted); font-size: 13.5px; }
+
+/* ---------- hotel card ---------- */
+.card {
+  flex: 0 0 var(--card-w);
+  width: var(--card-w);
+  scroll-snap-align: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.card.stale { opacity: .78; }
+.card.stale .thumb img { filter: grayscale(.85); }
+.thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 16 / 10;
+  max-width: 100%;
+  background: var(--surface-2);
+  text-decoration: none;
+  overflow: hidden;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+.thumb:hover img { transform: scale(1.03); }
+.thumb .ph {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 125;
+  font-weight: 800;
+  font-size: 34px;
+  letter-spacing: .06em;
+  color: var(--muted);
+}
+.thumb .badges { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgb(0 0 0 / .18);
+}
+.badge.new { background: var(--ok); color: var(--surface); }
+.badge.changed { background: var(--warn); color: var(--surface); }
+.badge.bench { background: var(--accent); color: var(--accent-ink); }
+.badge.stale { background: var(--stale); color: var(--surface); }
+.thumb .book {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgb(10 14 20 / .72);
+  color: #FFFFFF;
+  backdrop-filter: blur(4px);
+}
+.card-body { padding: 12px 14px 14px; display: grid; gap: 9px; min-width: 0; }
+.hotel { margin: 0; font-family: var(--font-display); font-variation-settings: "wdth" 104; font-weight: 700; font-size: 17px; line-height: 1.2; text-wrap: balance; }
+.area { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); }
+.area .code { font-family: var(--font-data); font-size: 11.5px; }
+.stay { display: grid; gap: 3px; }
+.stay .dates { font-weight: 700; font-size: 15px; }
+.stay .dates .arrow { color: var(--accent); padding-inline: 2px; }
+.stay .len { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tier { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; padding: 1px 7px; border-radius: 5px; background: var(--accent-soft); color: var(--accent-strong); }
+.tier.backup { background: var(--surface-2); color: var(--muted); }
+.rate { margin: 0; font-family: var(--font-data); font-size: 12px; color: var(--ink); background: var(--surface-2); padding: 5px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.rate::before { content: "Rate shown: "; color: var(--muted); font-family: var(--font-body); }
+.prices { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin: 0; }
+.prices div { min-width: 0; }
+.prices dt { font-size: 11.5px; color: var(--muted); }
+.prices dd { margin: 0; font-family: var(--font-data); font-variant-numeric: tabular-nums; font-weight: 600; font-size: 14px; }
+.prices .total { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: baseline; border-top: 1px solid var(--line); padding-top: 6px; }
+.prices .total dd { font-size: 19px; color: var(--ink); }
+.breakdown { margin: -3px 0 0; font-family: var(--font-data); font-size: 11.5px; color: var(--muted); }
+.commute {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  text-decoration: none;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+}
+.commute:hover { border-color: var(--accent); }
+.commute .mins { font-family: var(--font-data); font-weight: 600; }
+.commute .route { color: var(--muted); }
+.commute .ext { margin-left: auto; color: var(--accent); font-size: 12px; font-weight: 700; }
+.line-bullet {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #FFFFFF;
+  background: #5A6573;
+}
+.line-bullet.dark-text { color: #111111; }
+.why { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 12.5px; }
+.why li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; align-items: start; }
+.why .mark { font-weight: 700; color: var(--ok); line-height: 1.4; }
+.why li.no .mark { color: var(--bad); }
+.why .lbl { font-weight: 700; }
+.why .ev { color: var(--muted); overflow-wrap: anywhere; }
+.why-title { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 2px 0 -3px; }
+.others { display: flex; flex-wrap: wrap; gap: 5px; }
+.others .lab { font-size: 11.5px; color: var(--muted); width: 100%; }
+.datechip {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.datechip:hover { border-color: var(--accent); color: var(--accent-strong); }
+.datechip .num { font-size: 11.5px; color: var(--muted); }
+.verified { margin: 0; font-size: 11.5px; color: var(--muted); }
+.verified.stale { color: var(--stale); font-weight: 700; }
+
+.notice { padding: 28px 20px; border: 1px dashed var(--line); border-radius: var(--radius); display: grid; gap: 8px; justify-items: start; }
+.notice h3 { margin: 0; font-family: var(--font-display); font-variation-settings: "wdth" 110; font-size: 20px; }
+.notice p { margin: 0; color: var(--muted); max-width: 60ch; }
+
+/* ---------- editor ---------- */
+dialog#editor {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 0;
+  width: min(680px, calc(100vw - 24px));
+  max-height: calc(100dvh - 32px);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 20px 60px rgb(0 0 0 / .3);
+}
+dialog#editor::backdrop { background: rgb(8 12 18 / .5); }
+.ed { display: grid; gap: 0; }
+.ed-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.ed-head h2 { margin: 0; font-family: var(--font-display); font-variation-settings: "wdth" 110; font-size: 19px; }
+.ed-body { padding: 16px 18px; display: grid; gap: 18px; }
+.ed-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--line); position: sticky; bottom: 0; background: var(--surface); }
+fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+legend { font-family: var(--font-display); font-variation-settings: "wdth" 100; font-size: 12px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 0; margin-bottom: 8px; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field > span { font-size: 13px; font-weight: 700; }
+.field small, .hint { color: var(--muted); font-size: 12px; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+input[type="text"], input[type="number"], input[type="date"], input[type="time"], select, textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: var(--bg);
+  min-width: 0;
+}
+textarea { resize: vertical; min-height: 90px; line-height: 1.4; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; width: fit-content; }
+.seg label { padding: 6px 12px; font-size: 13.5px; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label:has(input:checked) { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.stay-grid-wrap { overflow-x: auto; }
+table.stay-grid { border-collapse: separate; border-spacing: 4px; font-size: 12.5px; }
+table.stay-grid th { font-weight: 700; color: var(--muted); font-size: 11.5px; text-align: center; padding: 0 2px; }
+table.stay-grid th[scope="row"] { text-align: left; color: var(--ink); font-size: 12.5px; padding-right: 6px; }
+.cell {
+  width: 64px;
+  height: 34px;
+  border-radius: 7px;
+  border: 1px dashed var(--line);
+  background: transparent;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--muted);
+  padding: 0;
+}
+.cell[data-tier="1"] { background: var(--accent); border: 1px solid var(--accent); color: var(--accent-ink); font-weight: 700; }
+.cell[data-tier="2"] { background: var(--accent-soft); border: 1px solid var(--accent); color: var(--accent-strong); font-weight: 700; }
+.cell[disabled] { opacity: .3; cursor: not-allowed; text-decoration: line-through; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
+.legend i { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--accent); }
+.legend i.p { background: var(--accent); }
+.legend i.b { background: var(--accent-soft); }
+.ed-error { color: var(--bad); font-size: 13px; margin: 0; }
+
+@media (max-width: 860px) {
+  .board { grid-template-columns: 1fr 1fr; }
+  .runcell { grid-column: 1 / -1; }
+}
+@media (max-width: 520px) {
+  .masthead { grid-template-columns: 1fr; }
+  .board { grid-template-columns: 1fr; }
+  .shelf-meta .actions { margin-left: 0; width: 100%; }
+  .runcell .btn { width: 100%; justify-content: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dot.live { animation: none; }
+  .thumb img { transition: none; }
+}
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="brand">
+      <h1>MMP Rate Watch</h1>
+      <p class="sub">Marriott Explore Associate &amp; Family rates on marriott.com, checked at 8:00am and 8:00pm Eastern.</p>
+    </div>
+    <div class="board" id="board">
+      <div class="stat"><span class="k">Last check</span><span class="v" id="st-last"><span class="dot"></span>Loading…</span></div>
+      <div class="stat"><span class="k">Next scheduled check</span><span class="v" id="st-next">8:00am or 8:00pm ET</span></div>
+      <div class="stat"><span class="k">Since last check</span><span class="v" id="st-delta">…</span></div>
+      <div class="runcell">
+        <button class="btn primary" id="run-now" type="button">Run check now</button>
+        <p class="runnote" id="run-note" hidden></p>
+      </div>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <h2>Criteria sets</h2>
+    <button class="btn" id="add-set" type="button">+ New criteria set</button>
+  </div>
+
+  <main id="main">
+    <div class="notice">
+      <h3>Loading your criteria sets</h3>
+      <p>Each criteria set appears here with a row of matching hotels. Tap a hotel's photo to open its Marriott booking page with the dates and code MMP filled in.</p>
+    </div>
+  </main>
+</div>
+
+<dialog id="editor" aria-labelledby="ed-title">
+  <form class="ed" id="ed-form" novalidate>
+    <div class="ed-head">
+      <h2 id="ed-title">Edit criteria set</h2>
+      <button class="btn quiet" type="button" id="ed-close" aria-label="Close">Close</button>
+    </div>
+    <div class="ed-body">
+      <fieldset>
+        <legend>Criteria</legend>
+        <label class="field"><span>Name</span><input type="text" id="f-name" required maxlength="80"></label>
+        <label class="field"><span>Criteria as you'd write them</span>
+          <textarea id="f-text" rows="6"></textarea>
+          <small>Kept as written. The checker reads the fields below.</small>
+        </label>
+        <label class="check"><input type="checkbox" id="f-paused"> Paused (skip this set during checks)</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Commute</legend>
+        <label class="field"><span>Destination</span><input type="text" id="f-dest" placeholder="230 Vesey Street, New York, NY"></label>
+        <div class="grid2">
+          <label class="field"><span>Under (minutes)</span><input type="number" id="f-mins" min="1" max="240" step="1"></label>
+          <label class="field"><span>Mode</span>
+            <select id="f-mode"><option value="transit">Public transit</option></select>
+          </label>
+          <label class="field"><span>Arrive by (weekday)</span><input type="time" id="f-arrive" value="09:00"></label>
+        </div>
+        <small class="hint">Door to door on Google Maps, including walking, waits and transfers.</small>
+      </fieldset>
+
+      <fieldset>
+        <legend>Price cap</legend>
+        <div class="grid2">
+          <label class="field"><span>At most (USD per night)</span><input type="number" id="f-price" min="1" step="1"></label>
+          <label class="field"><span>Compared against</span>
+            <select id="f-basis">
+              <option value="pretax">Nightly rate before taxes</option>
+              <option value="total">Nightly incl. taxes &amp; fees</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Dates</legend>
+        <div class="seg" role="radiogroup" aria-label="Date window">
+          <label><input type="radio" name="f-dmode" id="f-dmode-rolling" value="rolling">Rolling window</label>
+          <label><input type="radio" name="f-dmode" id="f-dmode-fixed" value="fixed">Fixed dates</label>
+        </div>
+        <div class="grid2" id="f-rolling-box">
+          <label class="field"><span>Check-in from today through today +</span><input type="number" id="f-days" min="1" max="120" step="1"><small>days</small></label>
+        </div>
+        <div class="grid2" id="f-fixed-box">
+          <label class="field"><span>Check-in from</span><input type="date" id="f-from"></label>
+          <label class="field"><span>Check-in through</span><input type="date" id="f-to"></label>
+        </div>
+        <div class="grid2">
+          <label class="field"><span>Check out by (optional)</span><input type="date" id="f-checkout"></label>
+        </div>
+        <label class="check"><input type="checkbox" id="f-nofri"> No Friday-night stays</label>
+        <div class="field">
+          <span>Stays to look for</span>
+          <small>Tap a cell to cycle: off, preferred, backup. Rows are the check-in night; columns are stay length. Each cell shows the check-out morning.</small>
+          <div class="stay-grid-wrap"><table class="stay-grid" id="f-grid"></table></div>
+          <div class="legend"><span><i class="p"></i>Preferred</span><span><i class="b"></i>Backup</span></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Where to look</legend>
+        <label class="field"><span>Areas to search</span><textarea id="f-areas" rows="2"></textarea><small>Comma separated. Commute time decides the final cut.</small></label>
+        <label class="field"><span>Benchmark hotel (optional)</span><input type="text" id="f-bench"></label>
+      </fieldset>
+      <p class="ed-error" id="ed-error" hidden></p>
+    </div>
+    <div class="ed-foot">
+      <button class="btn" type="button" id="ed-cancel">Cancel</button>
+      <button class="btn primary" type="submit" id="ed-save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  'use strict';
+  const TZ = 'America/New_York';
+  const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const DEFAULT_TIMES = ['08:00', '20:00'];
+  const LINE_COLORS = {
+    '1': '#EE352E', '2': '#EE352E', '3': '#EE352E',
+    '4': '#00933C', '5': '#00933C', '6': '#00933C',
+    '7': '#B933AD',
+    'A': '#0039A6', 'C': '#0039A6', 'E': '#0039A6',
+    'B': '#FF6319', 'D': '#FF6319', 'F': '#FF6319', 'M': '#FF6319',
+    'G': '#6CBE45', 'J': '#996633', 'Z': '#996633', 'L': '#A7A9AC',
+    'N': '#FCCC0A', 'Q': '#FCCC0A', 'R': '#FCCC0A', 'W': '#FCCC0A',
+    'S': '#808183', 'PATH': '#004D6F', 'NJT': '#1A2B5F', 'LIRR': '#0F61A9', 'FERRY': '#00839C'
+  };
+  const DARK_TEXT = new Set(['N', 'Q', 'R', 'W', 'L']);
+
+  const S = {
+    db: null, mcp: null, uid: null, canWrite: true, noDb: false,
+    criteria: [], listings: [], checks: {}, runs: [], state: null, config: null,
+    loaded: { criteria: false },
+    ui: { confirmDelete: null, runBusy: false, runMsg: null, editingId: null, grid: new Map() }
+  };
+
+  // ---------- small helpers ----------
+  function h(tag, props, ...kids) {
+    const el = document.createElement(tag);
+    if (props) {
+      for (const [k, v] of Object.entries(props)) {
+        if (v == null || v === false) continue;
+        if (k === 'class') el.className = v;
+        else if (k === 'text') el.textContent = v;
+        else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+        else el.setAttribute(k, v === true ? '' : String(v));
+      }
+    }
+    for (const kid of kids.flat(Infinity)) {
+      if (kid == null || kid === false) continue;
+      el.append(kid instanceof Node ? kid : String(kid));
+    }
+    return el;
+  }
+  const safeHttps = (u) => (typeof u === 'string' && /^https:\/\/[^\s"'<>]+$/.test(u)) ? u : null;
+  const safeImg = (u) => (typeof u === 'string' && (/^\/_blob\/[A-Za-z0-9_-]+$/.test(u) || /^data:image\/(png|jpe?g|webp);base64,/.test(u))) ? u : safeHttps(u);
+  const num = (x) => (typeof x === 'number' && isFinite(x)) ? x : null;
+  const usd = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+  const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
+  const money = (x) => num(x) == null ? '—' : usd.format(x);
+  const nightsLabel = (n) => n === 1 ? '1 night' : `${n} nights`;
+
+  function nyParts(d) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23', weekday: 'short'
+    }).formatToParts(d);
+    return Object.fromEntries(parts.map((p) => [p.type, p.value]));
+  }
+  function clock(hh, mm) {
+    const ap = hh < 12 ? 'am' : 'pm';
+    return `${hh % 12 || 12}:${String(mm).padStart(2, '0')}${ap}`;
+  }
+  function fmtWhen(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const p = nyParts(d);
+    const key = (x) => `${x.year}-${x.month}-${x.day}`;
+    const t = clock(+p.hour % 24, +p.minute);
+    if (key(p) === key(nyParts(new Date()))) return `Today ${t}`;
+    if (key(p) === key(nyParts(new Date(Date.now() - 864e5)))) return `Yesterday ${t}`;
+    return `${p.weekday} ${MON[+p.month - 1]} ${+p.day}, ${t}`;
+  }
+  function fmtClock(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    const p = nyParts(d);
+    return clock(+p.hour % 24, +p.minute);
+  }
+  function ymd(s) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])) : null;
+  }
+  function fmtDay(s) {
+    const d = ymd(s);
+    return d ? `${DOW[d.getUTCDay()]} ${MON[d.getUTCMonth()]} ${d.getUTCDate()}` : (s || '');
+  }
+  function fmtShortRange(a, b) {
+    const x = ymd(a), y = ymd(b);
+    if (!x || !y) return `${a || ''}–${b || ''}`;
+    if (x.getUTCMonth() === y.getUTCMonth()) return `${MON[x.getUTCMonth()]} ${x.getUTCDate()}–${y.getUTCDate()}`;
+    return `${MON[x.getUTCMonth()]} ${x.getUTCDate()} – ${MON[y.getUTCMonth()]} ${y.getUTCDate()}`;
+  }
+  function nextScheduled(times) {
+    const n = nyParts(new Date());
+    const now = (+n.hour % 24) * 60 + +n.minute;
+    const mins = (times && times.length ? times : DEFAULT_TIMES)
+      .map((t) => { const [a, b] = String(t).split(':').map(Number); return a * 60 + (b || 0); })
+      .filter((m) => isFinite(m)).sort((a, b) => a - b);
+    for (const m of mins) if (m > now) return `Today ${clock(Math.floor(m / 60), m % 60)}`;
+    return `Tomorrow ${clock(Math.floor(mins[0] / 60), mins[0] % 60)}`;
+  }
+  function shortPlace(s) { return String(s || '').split(',')[0].replace(/\bStreet\b/, 'St').trim(); }
+
+  // ---------- criteria chips ----------
+  function priceChip(p) {
+    if (!p || num(p.amount) == null) return null;
+    const basis = p.basis === 'total' ? 'incl. taxes & fees' : 'before tax';
+    return `${p.comparison === 'lt' ? '<' : '≤'} ${usd0.format(p.amount)}/night ${basis}`;
+  }
+  function commuteChip(c) {
+    if (!c || num(c.maxMinutes) == null || !c.destination) return null;
+    const arrive = c.arriveBy && c.arriveBy !== '09:00' ? `, arrive ${clock(+c.arriveBy.slice(0, 2), +c.arriveBy.slice(3, 5))}` : '';
+    return `${c.comparison === 'lte' ? '≤' : '<'} ${c.maxMinutes} min by transit to ${shortPlace(c.destination)}${arrive}`;
+  }
+  function dateChip(d) {
+    if (!d) return null;
+    let s;
+    if (d.mode === 'fixed' && d.from && d.to) s = `Check-in ${fmtShortRange(d.from, d.to)}`;
+    else if (num(d.rollingDays) != null) s = `Check-in within the next ${d.rollingDays} days`;
+    else return null;
+    const out = ymd(d.checkoutBy);
+    if (out) s += `, out by ${MON[out.getUTCMonth()]} ${out.getUTCDate()}`;
+    return s;
+  }
+  function stayChips(d) {
+    const stays = (d && Array.isArray(d.stays)) ? d.stays : [];
+    const out = [];
+    for (const tier of [1, 2]) {
+      const byN = new Map();
+      for (const s of stays) {
+        if ((s.tier || 1) !== tier) continue;
+        if (!byN.has(s.nights)) byN.set(s.nights, []);
+        byN.get(s.nights).push(s.dow);
+      }
+      for (const [n, dows] of [...byN.entries()].sort((a, b) => b[0] - a[0])) {
+        dows.sort((a, b) => a - b);
+        const days = dows.length === 7 ? 'any night' : dows.map((x) => `${DOW[x]}–${DOW[(x + n) % 7]}`).join(', ');
+        out.push({ tier, text: `${tier === 1 ? 'Prefer' : 'Backup'} ${nightsLabel(n)}: ${days}` });
+      }
+    }
+    if (d && d.noFridayNights) out.push({ tier: 3, text: 'No Friday nights' });
+    return out;
+  }
+
+  // ---------- top board ----------
+  function latestRun() { return S.runs[0] || null; }
+  function runIsActive(r) {
+    if (!r) return false;
+    if (r.status === 'running') return true;
+    if (r.status === 'requested') {
+      const age = Date.now() - new Date(r.requestedAt).getTime();
+      return age < 45 * 60 * 1000;
+    }
+    return false;
+  }
+  function renderBoard() {
+    const st = S.state || {};
+    const last = document.getElementById('st-last');
+    last.replaceChildren();
+    if (!S.db && !S.noDb) {
+      last.append(h('span', { class: 'dot' }), 'Loading…');
+    } else if (!st.lastCheckAt) {
+      last.append(h('span', { class: 'dot' }), 'No checks yet');
+    } else {
+      const map = { finished: ['ok', 'Finished'], partial: ['warn', 'Partly failed'], failed: ['bad', 'Failed'], blocked: ['bad', 'Blocked'] };
+      const [cls, word] = map[st.lastStatus] || ['', st.lastStatus || ''];
+      last.append(h('span', { class: `dot ${cls}` }), fmtWhen(st.lastCheckAt), h('small', { text: word }));
+    }
+    document.getElementById('st-next').textContent = nextScheduled(S.config && S.config.schedule && S.config.schedule.times);
+
+    const delta = document.getElementById('st-delta');
+    delta.replaceChildren();
+    const sum = st.lastSummary;
+    if (!sum) delta.append(h('small', { text: 'Nothing yet' }));
+    else if (!sum.added && !sum.removed && !sum.changed) delta.append(h('small', { text: 'No changes' }));
+    else {
+      delta.append(h('span', { class: 'delta num' },
+        h('span', { class: 'plus', text: `+${sum.added || 0} new` }),
+        h('span', { class: 'minus', text: `−${sum.removed || 0} removed` }),
+        sum.changed ? h('span', { class: 'chg', text: `${sum.changed} new dates` }) : null));
+    }
+
+    const btn = document.getElementById('run-now');
+    const note = document.getElementById('run-note');
+    const r = latestRun();
+    const active = runIsActive(r);
+    btn.disabled = !S.db || S.ui.runBusy || active || !S.canWrite;
+    btn.replaceChildren();
+    if (S.ui.runBusy) btn.append(h('span', { class: 'dot live' }), 'Requesting…');
+    else if (active && r.status === 'running') btn.append(h('span', { class: 'dot live' }), 'Check running');
+    else if (active) btn.append(h('span', { class: 'dot live' }), 'Check requested');
+    else btn.append('Run check now');
+
+    let msg = S.ui.runMsg;
+    if (!msg && active && r.status === 'running') {
+      const done = Object.values(r.perCriteria || {}).filter((x) => x && x.status).length;
+      const total = S.criteria.filter((c) => !c.paused).length;
+      msg = { kind: '', text: `Started ${fmtClock(r.startedAt || r.requestedAt)}${total ? ` · ${done} of ${total} sets done` : ''}` };
+    } else if (!msg && active) {
+      msg = { kind: '', text: `Requested ${fmtClock(r.requestedAt)}. Waiting for the checker to start.` };
+    } else if (!msg && r && r.status === 'not_started') {
+      msg = { kind: 'warn', text: `The request at ${fmtClock(r.requestedAt)} didn't start a check.` };
+    } else if (!msg && r && r.status === 'requested' && !active) {
+      msg = { kind: 'warn', text: `The request at ${fmtClock(r.requestedAt)} was never picked up.` };
+    }
+    note.replaceChildren();
+    if (msg) {
+      note.className = `runnote ${msg.kind || ''}`;
+      note.append(msg.text);
+      if (msg.link) note.append(' ', h('a', { href: msg.link, target: '_blank', rel: 'noopener', text: msg.linkText || 'Open the scheduled task' }));
+      note.hidden = false;
+    } else note.hidden = true;
+
+    document.getElementById('add-set').disabled = !S.db || !S.canWrite;
+  }
+
+  // ---------- cards ----------
+  function lineBullet(name) {
+    const key = String(name).toUpperCase().replace(/\s+TRAIN$/, '');
+    const color = LINE_COLORS[key];
+    const el = h('span', { class: `line-bullet${DARK_TEXT.has(key) ? ' dark-text' : ''}`, text: String(name).length > 5 ? String(name).slice(0, 5) : String(name) });
+    if (color) el.style.background = color;
+    return el;
+  }
+  function stayDates(st) {
+    return h('span', { class: 'dates' }, fmtDay(st.checkIn), h('span', { class: 'arrow', text: ' → ' }), fmtDay(st.checkOut));
+  }
+  function renderCard(l, crit, check) {
+    const m = l.main || {};
+    const failed = check && (check.status === 'error' || check.status === 'blocked');
+    const stale = !!l.stale || failed;
+    const staleAt = l.staleSince || (failed ? check.lastCheckedAt : null);
+    const booking = safeHttps(m.bookingUrl);
+    const img = safeImg(l.thumb);
+    const initials = (l.hotelCode || l.hotelName || '?').slice(0, 5).toUpperCase();
+
+    const badges = h('span', { class: 'badges' },
+      l.badges && l.badges.isNew ? h('span', { class: 'badge new', text: 'New' }) : null,
+      l.badges && l.badges.datesChanged ? h('span', {
+        class: 'badge changed', text: 'Dates changed',
+        title: l.badges.previous ? `Was ${fmtDay(l.badges.previous.checkIn)} → ${fmtDay(l.badges.previous.checkOut)}` : null
+      }) : null,
+      l.benchmark ? h('span', { class: 'badge bench', text: 'Benchmark' }) : null,
+      stale ? h('span', { class: 'badge stale', text: 'Stale' }) : null);
+
+    const thumbInner = [
+      img ? h('img', { src: img, alt: '', loading: 'lazy', decoding: 'async' }) : h('span', { class: 'ph', text: initials }),
+      badges,
+      h('span', { class: 'book', text: booking ? 'Book with MMP ↗' : 'No booking link' })
+    ];
+    const thumb = booking
+      ? h('a', { class: 'thumb', href: booking, target: '_blank', rel: 'noopener', 'aria-label': `Book ${l.hotelName || 'this hotel'} on marriott.com` }, thumbInner)
+      : h('div', { class: 'thumb' }, thumbInner);
+
+    const nightly = Array.isArray(m.nightly) ? m.nightly.filter((x) => x && num(x.amount) != null) : [];
+    const varies = nightly.length > 1 && new Set(nightly.map((x) => x.amount)).size > 1;
+
+    const c = l.commute || {};
+    const maps = safeHttps(c.mapsUrl);
+    const commuteBits = [
+      h('span', { class: 'mins', text: num(c.minutes) != null ? `${c.minutes} min` : '— min' }),
+      ...(Array.isArray(c.lines) ? c.lines.slice(0, 4).map(lineBullet) : []),
+      h('span', { class: 'route', text: c.summary || 'Transit time not checked yet' }),
+      maps ? h('span', { class: 'ext', text: 'Map ↗' }) : null
+    ];
+    const commute = maps
+      ? h('a', { class: 'commute', href: maps, target: '_blank', rel: 'noopener', title: 'Open this route in Google Maps' }, commuteBits)
+      : h('div', { class: 'commute' }, commuteBits);
+
+    const why = Array.isArray(l.why) ? l.why : [];
+    const others = Array.isArray(l.others) ? l.others : [];
+
+    return h('article', { class: `card${stale ? ' stale' : ''}` },
+      thumb,
+      h('div', { class: 'card-body' },
+        h('div', null,
+          h('h4', { class: 'hotel', text: l.hotelName || 'Unnamed hotel' }),
+          h('p', { class: 'area' }, l.area || '', l.hotelCode ? [' · ', h('span', { class: 'code', text: l.hotelCode })] : null)),
+        h('div', { class: 'stay' },
+          stayDates(m),
+          h('span', { class: 'len' },
+            nightsLabel(m.nights || 0),
+            h('span', { class: `tier${m.tier === 2 ? ' backup' : ''}`, text: m.tier === 2 ? 'Backup' : 'Preferred' }))),
+        m.rateName ? h('p', { class: 'rate', text: m.rateName }) : null,
+        h('dl', { class: 'prices' },
+          h('div', null, h('dt', { text: 'Nightly before tax' }), h('dd', { text: money(m.nightlyPretax) })),
+          h('div', null, h('dt', { text: 'Nightly incl. tax' }), h('dd', { text: money(m.nightlyInclTax) })),
+          h('div', { class: 'total' }, h('dt', { text: 'Total incl. taxes & fees' }), h('dd', { text: money(m.total) }))),
+        varies ? h('p', { class: 'breakdown', text: nightly.map((x) => `${fmtDay(x.date).slice(0, 3)} ${usd0.format(x.amount)}`).join(' · ') }) : null,
+        commute,
+        why.length ? h('p', { class: 'why-title', text: 'Why it fits' }) : null,
+        why.length ? h('ul', { class: 'why' }, why.map((w) => h('li', { class: w.ok === false ? 'no' : '' },
+          h('span', { class: 'mark', 'aria-hidden': 'true', text: w.ok === false ? '✕' : '✓' }),
+          h('span', null, h('span', { class: 'lbl', text: `${w.label || ''} ` }), h('span', { class: 'ev', text: w.evidence || '' }))))) : null,
+        others.length ? h('div', { class: 'others' },
+          h('span', { class: 'lab', text: 'Other matching dates' }),
+          others.map((o) => {
+            const u = safeHttps(o.bookingUrl);
+            const kids = [`${fmtDay(o.checkIn)} → ${fmtDay(o.checkOut).slice(0, 3)} `, h('span', { class: 'num', text: num(o.total) != null ? usd0.format(o.total) : '' })];
+            return u ? h('a', { class: 'datechip', href: u, target: '_blank', rel: 'noopener', title: `${nightsLabel(o.nights || 0)}, book on marriott.com` }, kids)
+              : h('span', { class: 'datechip' }, kids);
+          })) : null,
+        stale
+          ? h('p', { class: 'verified stale', text: `Stale since ${fmtWhen(staleAt) || 'the last check'} · last verified ${fmtWhen(l.lastVerifiedAt)}` })
+          : h('p', { class: 'verified', text: `Verified ${fmtWhen(l.lastVerifiedAt)}` })));
+  }
+
+  // ---------- shelves ----------
+  function sortListings(a, b) {
+    const ta = (a.main && a.main.tier) || 1, tb = (b.main && b.main.tier) || 1;
+    if (ta !== tb) return ta - tb;
+    return ((a.main && a.main.total) ?? 1e9) - ((b.main && b.main.total) ?? 1e9);
+  }
+  function renderShelf(c) {
+    const check = S.checks[c.id] || null;
+    const items = S.listings.filter((l) => l.criteriaId === c.id).sort(sortListings);
+    const failed = check && (check.status === 'error' || check.status === 'blocked');
+    const chips = [
+      priceChip(c.price) && h('span', { class: 'chip' }, h('b', { text: priceChip(c.price) })),
+      commuteChip(c.commute) && h('span', { class: 'chip' }, commuteChip(c.commute)),
+      dateChip(c.dates) && h('span', { class: 'chip' }, dateChip(c.dates)),
+      ...stayChips(c.dates).map((s) => h('span', { class: `chip${s.tier > 1 ? ' soft' : ''}`, text: s.text })),
+      c.rates && c.rates.accept === 'mmp-explore' ? h('span', { class: 'chip soft', text: 'MMP Explore rates only' }) : null
+    ];
+    const armed = S.ui.confirmDelete === c.id;
+    const actions = S.canWrite ? h('span', { class: 'actions' },
+      h('button', { class: 'btn quiet', type: 'button', onclick: () => openEditor(c.id), text: 'Edit' }),
+      h('button', { class: 'btn quiet', type: 'button', onclick: () => togglePause(c), text: c.paused ? 'Resume' : 'Pause' }),
+      h('button', { class: `btn quiet danger${armed ? ' armed' : ''}`, type: 'button', onclick: () => deleteSet(c), text: armed ? 'Tap again to delete' : 'Delete' }),
+      armed ? h('button', { class: 'btn quiet', type: 'button', onclick: () => { S.ui.confirmDelete = null; render(); }, text: 'Keep' }) : null) : null;
+
+    const checkedText = check && check.lastCheckedAt ? `Checked ${fmtWhen(check.lastCheckedAt)}` : 'Not checked yet';
+    const head = h('div', { class: 'shelf-head' },
+      h('div', { class: 'shelf-title' },
+        h('h3', { text: c.name || 'Untitled criteria set' }),
+        h('span', { class: `count${items.length ? '' : ' zero'}`, text: items.length === 1 ? '1 match' : `${items.length} matches` }),
+        c.paused ? h('span', { class: 'paused-pill', text: 'Paused' }) : null),
+      h('div', { class: 'chips' }, chips),
+      h('div', { class: 'shelf-meta' },
+        h('span', { text: checkedText }),
+        check && num(check.hotelsChecked) != null ? [h('span', { class: 'sep', text: '·' }), h('span', { text: `${check.hotelsChecked} hotels, ${check.staysChecked || 0} stays looked at` })] : null,
+        actions),
+      c.text ? h('details', { class: 'criteria-text' }, h('summary', { text: 'Criteria as written' }), h('p', { text: c.text })) : null);
+
+    let banner = null;
+    if (failed) {
+      banner = h('div', { class: `banner${check.status === 'blocked' ? ' bad' : ''}` },
+        h('div', null,
+          h('strong', { text: check.status === 'blocked' ? 'Marriott blocked the last check. ' : 'The last check failed. ' }),
+          `${fmtWhen(check.lastCheckedAt)}: ${check.error || 'no details'}. `,
+          items.length ? `Showing listings from ${fmtWhen(check.lastGoodAt) || 'the previous check'}, marked stale.` : ''));
+    }
+
+    let body;
+    if (items.length) {
+      body = h('div', { class: 'row', 'data-row': c.id, role: 'list', 'aria-label': `Hotels matching ${c.name || 'this set'}` },
+        items.map((l) => { const card = renderCard(l, c, check); card.setAttribute('role', 'listitem'); return card; }));
+    } else if (check && check.lastCheckedAt && !failed) {
+      const label = check.label || `check at ${fmtClock(check.lastCheckedAt)}`;
+      body = h('div', { class: 'empty' },
+        h('strong', { text: `No matches at ${label}` }),
+        h('span', { text: c.paused ? 'This set is paused. Resume it to include it in checks.' : `Next scheduled check: ${nextScheduled(S.config && S.config.schedule && S.config.schedule.times)}.` }));
+    } else if (!failed) {
+      body = h('div', { class: 'empty' },
+        h('strong', { text: 'Not checked yet' }),
+        h('span', { text: `Matches appear after the next check (${nextScheduled(S.config && S.config.schedule && S.config.schedule.times)}), or tap Run check now.` }));
+    }
+    return h('section', { class: 'shelf', id: `set-${c.id}` }, head, banner, body);
+  }
+
+  function render() {
+    renderBoard();
+    const main = document.getElementById('main');
+    const scroll = {};
+    main.querySelectorAll('.row[data-row]').forEach((r) => { scroll[r.dataset.row] = r.scrollLeft; });
+    const openText = new Set();
+    main.querySelectorAll('section.shelf').forEach((s) => { if (s.querySelector('details.criteria-text[open]')) openText.add(s.id); });
+
+    let content;
+    if (S.noDb) {
+      content = h('div', { class: 'notice' },
+        h('h3', { text: 'Open this page in claude.ai' }),
+        h('p', { text: 'Your criteria sets and matches live in this page\'s saved data, which only loads when you open the page in claude.ai or the Claude app while signed in.' }));
+    } else if (!S.loaded.criteria) {
+      return;
+    } else if (!S.criteria.length) {
+      content = h('div', { class: 'notice' },
+        h('h3', { text: 'No criteria sets yet' }),
+        h('p', { text: 'A criteria set describes the stays you want: dates, a nightly price cap, and a commute limit. Each check looks for matching Marriott MMP Explore rates.' }),
+        S.canWrite ? h('button', { class: 'btn primary', type: 'button', onclick: () => openEditor(null), text: 'Create a criteria set' }) : null);
+    } else {
+      content = [...S.criteria].sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || String(a.name).localeCompare(String(b.name))).map(renderShelf);
+    }
+    main.replaceChildren(...[content].flat());
+    main.querySelectorAll('.row[data-row]').forEach((r) => { if (scroll[r.dataset.row]) r.scrollLeft = scroll[r.dataset.row]; });
+    openText.forEach((id) => { const d = document.querySelector(`#${CSS.escape(id)} details.criteria-text`); if (d) d.open = true; });
+  }
+
+  // ---------- actions ----------
+  async function togglePause(c) {
+    try {
+      await S.db.doc(`criteria/${c.id}`).update({ paused: !c.paused, updatedAt: new Date().toISOString() });
+    } catch (e) { writeFailed(e); }
+  }
+  async function deleteSet(c) {
+    if (S.ui.confirmDelete !== c.id) { S.ui.confirmDelete = c.id; render(); return; }
+    S.ui.confirmDelete = null;
+    try {
+      for (const l of S.listings.filter((x) => x.criteriaId === c.id)) await S.db.doc(`listings/${l.id}`).delete();
+      await S.db.doc(`checks/${c.id}`).delete();
+      await S.db.doc(`criteria/${c.id}`).delete();
+    } catch (e) { writeFailed(e); }
+  }
+  function writeFailed(e) {
+    if (e && e.code === 'invalid_argument') S.canWrite = false;
+    S.ui.runMsg = { kind: 'bad', text: e && e.code === 'invalid_argument' ? 'You can view this page but not change it.' : `Couldn't save: ${(e && e.message) || 'unknown error'}` };
+    render();
+  }
+
+  function mcpMessage(e, link) {
+    const code = e && e.code;
+    const base = { kind: 'bad', link, linkText: 'Run it from the scheduled task' };
+    switch (code) {
+      case 'server_not_connected': return { ...base, text: 'Add the Claude Code Remote connector in claude.ai Settings → Connectors, then try again.' };
+      case 'needs_reauth': return { ...base, text: 'Reconnect Claude Code Remote in claude.ai Settings → Connectors, then try again.' };
+      case 'selection_required': return { ...base, text: 'Choose which Claude Code Remote connector this page should use when claude.ai asks, then try again.' };
+      case 'approval_required':
+      case 'not_in_manifest': return { ...base, kind: 'warn', text: 'Starting a check needs your OK. Tap Run check now again and choose Allow.' };
+      case 'not_granted':
+      case 'capability_disabled':
+      case 'capability_removed': return { ...base, text: 'This view can\'t start checks. Open the page in claude.ai or the Claude app.' };
+      case 'blocked_by_policy': return { ...base, text: 'Your organization\'s settings don\'t allow this page to start checks.' };
+      case 'tool_error': return { ...base, text: `The scheduled task didn't start: ${(e.message || '').slice(0, 160)}` };
+      case 'server_unavailable':
+      case 'upstream_error': return { ...base, kind: 'warn', text: 'Couldn\'t confirm the check started. Watch the status above for a minute before trying again.' };
+      default: return { ...base, text: `Couldn't start the check (${code || 'unknown error'}).` };
+    }
+  }
+
+  async function runNow() {
+    if (S.ui.runBusy || !S.db) return;
+    S.ui.runBusy = true;
+    S.ui.runMsg = null;
+    renderBoard();
+    const id = `m-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const ref = S.db.doc(`runs/${id}`);
+    const now = new Date().toISOString();
+    try {
+      await ref.set({ kind: 'manual', status: 'requested', requestedAt: now, requestedBy: S.uid || null, triggerFiredAt: null, startedAt: null, finishedAt: null, summary: null, perCriteria: {}, error: null });
+    } catch (e) {
+      S.ui.runBusy = false;
+      writeFailed(e);
+      return;
+    }
+    const trig = S.config && S.config.trigger;
+    const link = trig && safeHttps(trig.url);
+    if (!trig || !trig.id) {
+      S.ui.runMsg = { kind: 'warn', text: 'Request saved. The checker picks it up the next time it starts.' };
+    } else if (!S.mcp) {
+      S.ui.runMsg = { kind: 'warn', text: 'Request saved, but this view can\'t start the check itself.', link, linkText: 'Run it from the scheduled task' };
+      try { await ref.update({ status: 'not_started', error: 'no_mcp' }); } catch (_) { /* shown above */ }
+    } else {
+      try {
+        await S.mcp.callTool('Claude Code Remote', 'fire_trigger', { trigger_id: trig.id, text: `Manual check requested from the dashboard. Run id: ${id}` });
+        S.ui.runMsg = { kind: 'ok', text: 'Check started. Matches update here as it finishes.' };
+        try { await ref.update({ triggerFiredAt: new Date().toISOString() }); } catch (_) { /* the run itself still proceeds */ }
+      } catch (e) {
+        S.ui.runMsg = mcpMessage(e, link);
+        const ambiguous = e && (e.code === 'server_unavailable' || e.code === 'upstream_error');
+        if (!ambiguous) { try { await ref.update({ status: 'not_started', error: e.code || 'error' }); } catch (_) { /* shown above */ } }
+      }
+    }
+    S.ui.runBusy = false;
+    renderBoard();
+  }
+
+  // ---------- editor ----------
+  const dlg = document.getElementById('editor');
+  const $f = (id) => document.getElementById(id);
+  function cellKey(dow, n) { return `${dow}-${n}`; }
+  function includesFriday(dow, n) { for (let i = 0; i < n; i++) if ((dow + i) % 7 === 5) return true; return false; }
+  function drawGrid() {
+    const t = $f('f-grid');
+    const nofri = $f('f-nofri').checked;
+    const head = h('tr', null, h('th', { text: 'Check-in' }), [1, 2, 3, 4].map((n) => h('th', { scope: 'col', text: nightsLabel(n) })));
+    const rows = DOW.map((d, dow) => h('tr', null,
+      h('th', { scope: 'row', text: d }),
+      [1, 2, 3, 4].map((n) => {
+        const k = cellKey(dow, n);
+        const blocked = nofri && includesFriday(dow, n);
+        const tier = blocked ? 0 : (S.ui.grid.get(k) || 0);
+        const label = tier === 1 ? 'Preferred' : tier === 2 ? 'Backup' : '';
+        const out = DOW[(dow + n) % 7];
+        return h('td', null, h('button', {
+          class: 'cell', type: 'button', 'data-tier': String(tier), disabled: blocked,
+          'aria-label': `${d} check-in, ${nightsLabel(n)}, out ${out}: ${label || 'off'}`,
+          onclick: () => { S.ui.grid.set(k, ((S.ui.grid.get(k) || 0) + 1) % 3); drawGrid(); }
+        }, `→ ${out}`, label ? [h('br'), label] : null));
+      })));
+    t.replaceChildren(h('thead', null, head), h('tbody', null, rows));
+  }
+  function syncDateMode() {
+    const fixed = $f('f-dmode-fixed').checked;
+    $f('f-fixed-box').hidden = !fixed;
+    $f('f-rolling-box').hidden = fixed;
+  }
+  function openEditor(id) {
+    const c = id ? S.criteria.find((x) => x.id === id) : null;
+    S.ui.editingId = c ? c.id : null;
+    $f('ed-title').textContent = c ? 'Edit criteria set' : 'New criteria set';
+    $f('f-name').value = c ? (c.name || '') : '';
+    $f('f-text').value = c ? (c.text || '') : '';
+    $f('f-paused').checked = !!(c && c.paused);
+    const cm = (c && c.commute) || {};
+    $f('f-dest').value = cm.destination || '';
+    $f('f-mins').value = num(cm.maxMinutes) != null ? cm.maxMinutes : 45;
+    $f('f-mode').value = 'transit';
+    $f('f-arrive').value = cm.arriveBy || '09:00';
+    const p = (c && c.price) || {};
+    $f('f-price').value = num(p.amount) != null ? p.amount : '';
+    $f('f-basis').value = p.basis === 'total' ? 'total' : 'pretax';
+    const d = (c && c.dates) || { mode: 'rolling', rollingDays: 28 };
+    $f('f-dmode-fixed').checked = d.mode === 'fixed';
+    $f('f-dmode-rolling').checked = d.mode !== 'fixed';
+    $f('f-days').value = num(d.rollingDays) != null ? d.rollingDays : 28;
+    $f('f-from').value = d.from || '';
+    $f('f-to').value = d.to || '';
+    $f('f-checkout').value = d.checkoutBy || '';
+    $f('f-nofri').checked = !!d.noFridayNights;
+    S.ui.grid = new Map();
+    for (const s of (Array.isArray(d.stays) ? d.stays : [])) S.ui.grid.set(cellKey(s.dow, s.nights), s.tier === 2 ? 2 : 1);
+    $f('f-areas').value = c && Array.isArray(c.areas) ? c.areas.join(', ') : 'Lower Manhattan, Jersey City, Hoboken, Newark (Penn Station / PATH), Brooklyn, Long Island City';
+    $f('f-bench').value = (c && c.benchmark) || '';
+    $f('ed-error').hidden = true;
+    syncDateMode();
+    drawGrid();
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+    $f('f-name').focus();
+  }
+  function closeEditor() { if (dlg.open) dlg.close(); S.ui.editingId = null; }
+  function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'set'; }
+
+  async function saveEditor(ev) {
+    ev.preventDefault();
+    const err = $f('ed-error');
+    const name = $f('f-name').value.trim();
+    const fail = (t) => { err.textContent = t; err.hidden = false; };
+    if (!name) return fail('Give the criteria set a name.');
+    const mins = Number($f('f-mins').value);
+    const dest = $f('f-dest').value.trim();
+    if (dest && !(mins > 0)) return fail('Set a commute limit in minutes, or clear the destination.');
+    const price = $f('f-price').value === '' ? null : Number($f('f-price').value);
+    if (price != null && !(price > 0)) return fail('The price cap must be a positive number.');
+    const fixed = $f('f-dmode-fixed').checked;
+    const from = $f('f-from').value || null, to = $f('f-to').value || null;
+    if (fixed && (!from || !to)) return fail('Fixed dates need both a first and a last check-in date.');
+    if (fixed && from > to) return fail('The first check-in date comes after the last one.');
+    const days = Number($f('f-days').value);
+    if (!fixed && !(days > 0)) return fail('Set how many days ahead to look.');
+    const nofri = $f('f-nofri').checked;
+    const stays = [];
+    for (const [k, tier] of S.ui.grid.entries()) {
+      if (!tier) continue;
+      const [dow, n] = k.split('-').map(Number);
+      if (nofri && includesFriday(dow, n)) continue;
+      stays.push({ dow, nights: n, tier });
+    }
+    stays.sort((a, b) => a.tier - b.tier || b.nights - a.nights || a.dow - b.dow);
+    if (!stays.length) return fail('Pick at least one stay in the grid.');
+
+    const existing = S.ui.editingId ? S.criteria.find((x) => x.id === S.ui.editingId) : null;
+    const now = new Date().toISOString();
+    const doc = {
+      name,
+      text: $f('f-text').value,
+      paused: $f('f-paused').checked,
+      order: existing ? (existing.order ?? 99) : (Math.max(0, ...S.criteria.map((x) => x.order || 0)) + 1),
+      commute: dest ? { destination: dest, maxMinutes: mins, comparison: (existing && existing.commute && existing.commute.comparison) || 'lt', mode: 'transit', arriveBy: $f('f-arrive').value || '09:00' } : null,
+      price: price != null ? { amount: price, comparison: (existing && existing.price && existing.price.comparison) || 'lte', per: 'night', basis: $f('f-basis').value } : null,
+      dates: {
+        mode: fixed ? 'fixed' : 'rolling',
+        rollingDays: fixed ? null : days,
+        from: fixed ? from : null,
+        to: fixed ? to : null,
+        checkoutBy: $f('f-checkout').value || null,
+        noFridayNights: nofri,
+        stays
+      },
+      rates: { accept: 'mmp-explore' },
+      areas: $f('f-areas').value.split(',').map((s) => s.trim()).filter(Boolean),
+      benchmark: $f('f-bench').value.trim() || null,
+      createdAt: existing ? (existing.createdAt || now) : now,
+      updatedAt: now
+    };
+    const id = existing ? existing.id : `${slug(name)}-${Math.random().toString(36).slice(2, 6)}`;
+    $f('ed-save').disabled = true;
+    try {
+      await S.db.doc(`criteria/${id}`).set(doc);
+      closeEditor();
+    } catch (e) {
+      fail(e && e.code === 'invalid_argument' ? 'This page is view-only for you, so changes can\'t be saved.' : `Couldn't save: ${(e && e.message) || 'unknown error'}`);
+    } finally {
+      $f('ed-save').disabled = false;
+    }
+  }
+
+  // ---------- wiring ----------
+  document.getElementById('run-now').addEventListener('click', runNow);
+  document.getElementById('add-set').addEventListener('click', () => openEditor(null));
+  $f('ed-form').addEventListener('submit', saveEditor);
+  $f('ed-cancel').addEventListener('click', closeEditor);
+  $f('ed-close').addEventListener('click', closeEditor);
+  $f('f-nofri').addEventListener('change', drawGrid);
+  $f('f-dmode-fixed').addEventListener('change', syncDateMode);
+  $f('f-dmode-rolling').addEventListener('change', syncDateMode);
+
+  function onDbError(e) {
+    if (e && e.code === 'revoked') { S.noDb = true; render(); }
+  }
+
+  async function boot() {
+    renderBoard();
+    const api = window.claude;
+    if (!api || typeof api.use !== 'function') { S.noDb = true; render(); return; }
+    const db = await api.use('db').catch(() => null);
+    if (!db) { S.noDb = true; render(); return; }
+    S.db = db;
+    api.use('user').then(async (u) => {
+      if (!u) return;
+      S.uid = await u.id();
+      const can = await u.can('data.write');
+      S.canWrite = can !== false;
+      render();
+    }).catch(() => {});
+    api.use('mcp').then((m) => { S.mcp = m; }).catch(() => {});
+
+    db.collection('criteria').onSnapshot((snap) => {
+      S.criteria = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      S.loaded.criteria = true;
+      render();
+    }, onDbError);
+    db.collection('listings').onSnapshot((snap) => {
+      S.listings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      render();
+    }, onDbError);
+    db.collection('checks').onSnapshot((snap) => {
+      S.checks = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+      render();
+    }, onDbError);
+    db.collection('runs').orderBy('requestedAt', 'desc').limit(6).onSnapshot((snap) => {
+      S.runs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      if (S.ui.runMsg && S.runs[0] && ['running', 'finished', 'partial', 'failed'].includes(S.runs[0].status)) S.ui.runMsg = null;
+      renderBoard();
+    }, onDbError);
+    db.doc('state/current').onSnapshot((snap) => { S.state = snap.exists ? snap.data() : null; renderBoard(); }, onDbError);
+    db.doc('config/main').onSnapshot((snap) => { S.config = snap.exists ? snap.data() : null; render(); }, onDbError);
+
+    setInterval(renderBoard, 60 * 1000);
+  }
+  boot();
+})();
+</script>
