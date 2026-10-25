@@ -1,3 +1,12 @@
 node_modules/
 *.png
 .DS_Store
+
+site/.git/
+site/dist/
+site/.wrangler/
+site/.sites-runtime/
+site/.vinext/
+site/.env*
+site/.dev.vars*
+*.tsbuildinfo

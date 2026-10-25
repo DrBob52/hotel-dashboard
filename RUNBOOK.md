@@ -1,184 +1,210 @@
-# MMP hotel-rate watch: RUNBOOK
+# MMP hotel rate watcher runbook
 
-Operating notes for the checker. Every scheduled run starts from a fresh
-container, so anything a run needs lives in this repo.
+The implementation now targets a private Site, as approved by the user. Shared state is in D1; stored hotel images are in R2. GitHub source: https://github.com/DrBob52/hotel-dashboard. The legacy Claude Artifact source and runbook remain in the GitHub repository for reference.
 
-## Status
+Live publication, schedule state, pending requests, and last check status must be read from Sites get_site and watch_snapshot. A saved schedule is not proof that source access or a full check succeeds.
 
-| Item | State | Verified |
-| --- | --- | --- |
-| marriott.com from the cloud container | **Blocked** by Akamai ("Access Denied", HTTP 403) | 2026-10-25 |
-| Google Maps transit from the cloud container | Works (headless Chromium, no sign-in), `checker/commute.js` | 2026-10-25 |
-| Dashboard Artifact + database, both criteria sets seeded | Live | 2026-10-25 |
-| Marriott rate names, banners, URL formats | Not yet recorded (needs the Mac runner's first run) | |
-| Schedule (8:00am / 8:00pm ET) and "Run check now" trigger | Not set up yet (depends on the Mac runner) | |
+## Confirmed decisions and remaining source limits
 
-## Architecture
+- Combined Explore Associate & Friends labels may qualify only with explicit Associate-rate evidence. Generic terms listing associates, family, and friends are insufficient.
+- Use the supplied GitHub repository and private Sites hosting, shared D1 storage, and R2 photos.
+- Public rate displays were observed locally. Previous cloud access was denied by Marriott. Do not retry through another identity or network to get around a denial.
+- Public whole-dollar totals do not establish exact cents or nightly breakdowns. The inspected rate-selection step required sign-in. Never estimate the missing evidence.
+- The feasibility sample used one room and one adult. The live configuration records this as an unconfirmed default; no result should silently assume another occupancy.
 
-The user chose the Mac fallback: Marriott searching runs in the user's own
-Chrome on their Mac through Claude in Chrome, because marriott.com refuses the
-cloud container. Everything else stays in the cloud:
+## Run procedure and data tools
 
-- **Dashboard**: claude.ai Artifact
-  <https://claude.ai/artifact/WskigVyR4QQ5m8fziTtq2S>. Source:
-  `dashboard/index.html`. Republish from that file (same path keeps the URL).
-  Capabilities: `db`, `user`, `assets`, and `mcp` with the single tool
-  `Claude Code Remote` / `fire_trigger`.
-- **Data**: the Artifact's database. Shapes in `docs/DATA_MODEL.md`. Read and
-  write it with the `ArtifactData` tool and the URL above. Never hardcode
-  listings into the page.
-- **Commute lookups**: `checker/commute.js` (Playwright, Google Maps web).
-  Works from the cloud container; results cached in `commute/<key>` for 30 days.
-- **"Run check now"**: the page writes `runs/<id>` with `status: "requested"`,
-  then calls `fire_trigger` on `config/main.trigger.id` through the viewer's
-  own Claude Code Remote connector. No secret is in the page source. If
-  `config/main.trigger` is null the request is only recorded.
-- **Thumbnails**: the Artifact's CSP blocks external images, so Marriott photos
-  must be uploaded to the Artifact's asset store (Artifact tool, `asset: true`)
-  and the listing's `thumb` set to the returned `/_blob/<id>` URL.
+The authenticated private Site service endpoint `/api/worker` (JSON-RPC) and OAuth `/mcp` transport expose watch_snapshot, watch_request_check, watch_begin_run, watch_finish_run, watch_configure_schedule, watch_cache_commute, and watch_cache_thumbnail. Use the generated Site plugin when connected. For unattended service writes, obtain the existing service credential through Sites get_site in that fresh task and send OAI-Sites-Authorization only to this Site's /api/worker endpoint. The /mcp route uses separate MCP OAuth and returned HTTP 401 with the service header; /api/watch readback succeeded using supported Site service access. Never put service credentials in source, browser JavaScript, files, or prompts.
 
-## Mac runner (setup in progress)
+1. Read watch_snapshot and claim a pending request with watch_begin_run; otherwise begin a scheduled run. The returned claim token belongs only to that run. The response includes active criteria, their versions, exact date windows, cached commutes, and the rate policy.
+2. Read the criteria text as well as structured fields. Use checker/collector.cjs observeWindow and observeHotel with the supplied Playwright page for normal public searches, or inspect the same public UI. The collector returns observations, not qualified matches. Its current discovery records are deliberately marked incomplete until all pages and geographies have been verified.
+3. Stop at CAPTCHA, denied access, or authentication requirements. Return blocked/error for affected sets. Do not use another browser identity, network, or protected endpoint to get around the stop.
+4. Independently verify each candidate, cache a Marriott photo with watch_cache_thumbnail, and save the exact route evidence with watch_cache_commute. The commuter record must include destination, mode, arriveBy, weekdayVerified, includesWalkingWaitsTransfers, evidence, mapsUrl, and checkedAt.
+5. Finish with watch_finish_run using runId, claim, and perCriteria. A blocked set uses {status:"blocked",error:"specific observed reason"}. An ok set requires allWindowsChecked:true, windowsChecked equal to the returned window count, allGeographiesChecked:true, criteriaTextReviewed:true, hotelsChecked, and listings. Partial coverage cannot produce a successful empty set.
+6. Each listing includes hotelCode, hotelName, address, criteriaId, stored thumb, main, others, commute, and why. Every stay needs exactTotalVerified, priceEvidence, rateDetailsText, rateName, per-night breakdown, prices, dates, corporate-code booking URL, supervisorVerifiedAt, and supervisorEvidence. A combined label additionally requires associateEvidence quoted from its Marriott details. See lib/watch-domain.mjs for validation.
+7. Read watch_snapshot again to confirm persistence. Unchanged criteria are refreshed atomically. Paused, deleted, or edited sets cannot receive obsolete in-flight results. Failures retain prior matches and original verification times, marking them stale.
 
-Documented building blocks (Claude Code docs, read 2026-10-25):
+Phone trigger: Run check now writes a deduplicated request. If a real hosted task URL is configured, it opens the task page for the user to tap Run now. Without a verified task URL, the UI explicitly says the request is queued and the on-demand worker is not connected. Do not claim that saving a request wakes a worker.
 
-- Claude in Chrome from Claude Code: `claude --chrome`, or `/chrome` and pick
-  "Enabled by default". Extension 1.0.36+, signed in to the same claude.ai
-  account and organization as Claude Code (`/status` shows it). Actions run in
-  a visible Chrome window; on a login page or CAPTCHA Claude pauses and asks.
-- Remote Control: `claude remote-control --name "Hotel watch" --chrome` in the
-  repo folder. The terminal process must keep running and the Mac must stay
-  awake; about 10 minutes without network makes server mode exit
-  (`claude remote-control --continue` within ~4 hours brings it back). The
-  first run asks to enable Remote Control and to trust the folder. Reachable
-  from the Claude app's Code tab and claude.ai/code.
-- Desktop local scheduled tasks (Desktop 1.1.5368+): Code tab → Scheduled →
-  New task, Advanced → "Only on this computer", local folder = the repo.
-  Custom cron uses the Mac's local time zone (must be America/New_York):
-  `30 7,19 * * *` starts at 7:30am and 7:30pm so results are ready by 8:00.
-  Needs the Desktop app open and the Mac awake (Settings → This computer →
-  Keep computer awake). A run missed during sleep catches up once on wake.
-  Pick a permission mode that won't stall waiting for approval.
-- The docs say cloud scheduled tasks always start a fresh cloud session. Not
-  documented, to be tested: a cloud trigger with `persistent_session_id` set to
-  the Mac's Remote Control session, and the dashboard calling `send_message` to
-  that session.
-- Not documented, to be tested on the Mac: whether local Claude Code has the
-  `ArtifactData` tool (the `Artifact` tool needs CLI v2.1.281+ or Desktop
-  1.13576.0+, signed in with a claude.ai account); whether Claude in Chrome
-  works inside Desktop scheduled tasks.
+Desired schedule: start at 7:30am and 7:30pm America/New_York for an 8:00am/8:00pm completion target. Runtime cannot be promised until a full check succeeds and is timed.
 
-## Network policy (cloud environment)
+## Local feasibility findings
 
-The environment uses a Custom network policy. Besides the default package
-managers, it must allow:
+The following observations were collected October 25, 2026, around 3:45pm Eastern. The Playwright browser was local to the Codex desktop chat. Fresh cloud access has not been established by these observations.
 
-- `marriott.com`, `*.marriott.com` (site, search, `cache.marriott.com` photos)
-- `google.com`, `*.google.com` (Google Maps web)
-- `*.gstatic.com` (Maps scripts, tiles, fonts)
+## Access and stopping rules
 
-`*.googleapis.com` is on the default list already.
+Use only the normal public marriott.com site for hotel and rate evidence. Use Google Maps transit directions for commute evidence. Do not sign in, create an account, enter personal information, or book.
 
-## Marriott: cloud access result (2026-10-25)
+If either source presents a CAPTCHA, access-denied page, or automation restriction, stop source access and report it. Do not change browser identity, solve challenges, rotate proxies, replay protected requests, or switch access methods to evade a restriction.
 
-With the domains allowed, the proxy tunnel opens but Marriott's Akamai edge
-refuses the request itself:
+No CAPTCHA or access-denied page was observed during this local test. Marriott's rate-selection step presented a sign-in dialog; no fields were filled, and the dialog was closed. No access beyond that gate was attempted.
 
-- `curl` to `https://www.marriott.com/`: HTTP 403, `server: AkamaiGHost`,
-  body "Access Denied ... Reference #18.xxxx", `errors.edgesuite.net` link.
-- Playwright Chromium, default settings (UA contains `HeadlessChrome/153`):
-  HTTP 403 "Access Denied" on `https://www.marriott.com/default.mi` and on a
-  `search/findHotels.mi` URL. The denial is immediate, with no JS challenge.
+Outbound website access worked in the supplied browser. No network allowlist failure was demonstrated, so there is no evidence-based list of domains to unblock. Cloud network policy and cloud access remain untested.
 
-- `cache.marriott.com` (hotel photos) answers HTTP 403 `AkamaiGHost` to the
-  cloud container as well, so thumbnails must also be fetched on the Mac.
+## Marriott sample and observed labels
 
-Per the source rules, the checker does **not** try to get around this: no
-stealth plugins, no user-agent spoofing, no CAPTCHA solving, no proxy
-rotation. If a run sees this page it stops, marks the affected criteria sets'
-listings stale, and records the error.
+Source entry point: https://www.marriott.com/
 
-Detect it by any of: HTTP status 403 on the document, page title
-`Access Denied`, body text containing `errors.edgesuite.net`.
+Search destination: 230 Vesey Street, New York, NY. Marriott resolved it to 230 Vesey St, New York, NY 10281, USA.
 
-## Google Maps transit lookups
+Dates: Monday October 26 to Thursday October 29, 2026; three nights. One room, one adult, no children. Corporate code MMP was visibly selected. The search counter reported 153 results; this is a broad search count, not a count of qualified MMP matches.
 
-Use the module:
+Inspected property: Residence Inn by Marriott New York Downtown Manhattan/World Trade Center Area, 170 Broadway, New York, NY 10007. Property code NYCRL. This is a different property from the Jersey City benchmark.
 
-```
-node checker/commute.js --origin "<street address>" --dest "230 Vesey Street, New York, NY 10281"
-node checker/commute.js --batch lookups.json   # [{key, origin, destination, arriveBy?}]
-```
+Observed rate title:
+- Explore Associate & Friends Rate
 
-It prints JSON (`minutes`, `lines`, `summary`, `walkMinutes`, `departs`,
-`arrives`, `mapsUrl`, `options`). Exit code 3 means Google showed an
-unusual-traffic, CAPTCHA or consent page: stop, mark the commute as unknown,
-and report it. Do not retry or work around it. Allow about 5 to 7 seconds per
-lookup; the module waits 2 to 4 seconds between lookups.
+Do not add that title to an accepted-rate allowlist until the eligibility question is resolved. Its rate details describe eligibility across associates, family, and friends after validation. Neither a separately named Explore Associate-only rate nor a separately named Explore Family rate was established.
 
-**Always pass the hotel's street address, never its name.** Names are
-ambiguous: "Fairfield Inn & Suites New York Brooklyn" resolved to a hotel near
-Midwood (70 min by express bus) instead of 181 3rd Ave (33 min by the R).
+Other visible rate labels included Flexible Rate, Member Rate, Non-Member Rate, and packages. They are ineligible under the brief. The presence of MMP in the search form does not make every returned rate eligible.
 
-How the page is read (Google's class names are obfuscated; these hooks are
-stable as of 2026-10-25):
+Observed availability badge:
+- SPECIAL RATE AVAILABLE
 
-- Each route option is a `div[data-trip-index="N"]`.
-- Its text holds the duration (`18 min`, `1 hr 10 min`) and the time range,
-  split across text nodes (`8:23 AM (Wednesday)`, `—`, `8:56 AM`).
-- Subway lines are icons: `img[alt="R"]` with `src` under
-  `maps.gstatic.com/mapfiles/transit/iw2/svg/us-ny-mta/`. PATH and buses are
-  plain text. Generic icons (`Walk`, `Train`, `Bus`) are skipped.
-- Icon-font glyphs (Unicode private-use characters) sit in the text; strip
-  them before parsing.
-- Only the selected option shows `8:43 AM from Grove St` and the walking total
-  (`$3.25  10 min`). To read them for another option, focus it and press
-  Enter: a "Continue your trip" banner covers the lower options and swallows
-  mouse clicks.
-- The walking-only alternative also has a `data-trip-index` but no time range;
-  it counts if it's the shortest (summary `Walk`).
+This badge alone does not establish Associate/Family eligibility. No corporate-code-unavailable fallback banner was encountered or verified. Leave the fallback-banner registry incomplete; do not invent exact strings or treat absence of a known banner as proof of eligibility.
 
-Arrive-by transit directions load from a plain URL, no form driving needed:
+### Price presentation
 
-```
-https://www.google.com/maps/dir/<ORIGIN>/<DESTINATION>/data=!4m6!4m5!2m3!6e1!7e2!8j<ARRIVE>!3e3?hl=en
-```
+For the Executive Studio room under the observed combined Explore label:
 
-- `<ORIGIN>`, `<DESTINATION>`: URL-encoded place name or address
-  (`+` for spaces). A hotel name works ("Residence Inn by Marriott Jersey City").
-- `!6e1`: arrive by. (`!6e0` would be depart at.)
-- `!8j<ARRIVE>`: arrival time as Unix seconds of the **local** wall-clock
-  time written as if it were UTC. 9:00 AM on Wed Nov 4 2026 is
-  `Date.UTC(2026, 10, 4, 9, 0, 0) / 1000` = `1793782800`.
-- `!3e3`: transit mode.
-- Use a weekday (Tue to Thu) in the next couple of weeks; Google only plans
-  transit about 100 days ahead.
+| Marriott display state | Average nightly display | Full stay display |
+| --- | ---: | ---: |
+| Taxes/fees toggle off | USD 786 | USD 2,358 |
+| Taxes/fees toggle on | USD 907 | USD 2,722 |
 
-The side panel's text (`document.body.innerText`) lists route options as:
+The first display separately states that a USD 25 destination fee is included. It must not be described as a room-only base rate. The second display states that taxes and all fees are included. These are whole-dollar displays, not verified exact cents. Capture the nightly and full-stay values independently: displayed nightly rate multiplied by nights does not necessarily equal the displayed total.
 
-```
-18 min
-8:41 AM (Wednesday)—8:59 AM
-PATH
-8:43 AM from Grove St
-$3.25  10 min        <- fare, total walking
-```
+This sample is above both price caps and is not a match, regardless of the pending rate-label decision. No qualified listings have been established.
 
-Take the **shortest total duration** among the listed options that arrive by
-the target time. The duration is door to door (walking, waits and transfers
-included). Record minutes, the line names (e.g. `PATH`), the boarding stop,
-and the URL itself as the card's Google Maps link.
+Opening the special rate's Select control displayed:
+- Sign In to Book This Rate
 
-Reference results (2026-10-25, weekday, arrive by 9:00, to 230 Vesey St):
+The full price summary beyond that gate was not inspected. The rate-details information icon itself was accessible without sign-in, but the inspected details modal did not provide the required exact full-stay breakdown.
 
-| Origin | Minutes | Route |
-| --- | --- | --- |
-| Residence Inn by Marriott Jersey City (benchmark) | 18 | PATH from Grove St, 10 min walking |
-| 181 3rd Ave, Brooklyn | 33 | R from Union St, 17 min walking |
-| 29-21 41st Ave, Long Island City | 37 | E from Queens Plaza, 12 min walking |
+## Reproduce the public sample
 
-The cloud container has Playwright preinstalled; `require('playwright')`
-works from any directory. Don't `npm install playwright` there (another
-version won't find the preinstalled Chromium).
+1. Open the Marriott homepage in a normal browser context.
+2. Enter 230 Vesey Street, New York, NY in Destination.
+3. Open the dates control. Click Reset before selecting a new range. Clicking a date while an existing start/end range is selected can change just the checkout or start a new range.
+4. Select October 26 and October 29, 2026, and click Done.
+5. Open Lowest Regular Rate, choose Corp/Promo Code, enter MMP, and click Done.
+6. Confirm one room and one adult for this sample, then click Find Hotels.
+7. Wait for actual hotel cards. A transient zero-result counter and loading placeholders appeared before the search populated. Never treat those as a completed empty search.
+8. Confirm the rendered dates, destination, and MMP code.
+9. Open a property's View Rates link, then expand a room's View Rates button. Read the exact rate heading and its Rate Details modal.
+10. Close the rate-details modal. Explicitly set the taxes-and-fees checkbox and verify the state before reading prices.
+11. Stop if sign-in is required for further evidence. Do not accept a candidate missing required rate or exact-price evidence.
 
-Commute times are cached per (hotel, destination) and re-checked monthly or
-when a hotel is new.
+The test used the normal public UI. It did not call private booking APIs or use another booking site.
+
+### Selectors observed during this test
+
+Prefer accessible labels and verify them against the current page before reuse. Transient snapshot references are not production selectors.
+
+- Homepage destination: getByRole('textbox', { name: 'Destination', exact: true })
+- Calendar dates: getByRole('gridcell', { name: 'Mon Oct 26 2026', exact: true })
+- Calendar reset: getByRole('button', { name: 'Reset', exact: true })
+- Corporate-code textbox: getByRole('textbox', { name: 'ENTER CODE' })
+- Homepage submit button: getByRole('button', { name: /Find Hotels/ })
+- Search results: getByRole('link', { name: 'View Rates' })
+- Room expansion: getByTestId('rate-button')
+- Rate details within the selected rate row: getByTestId('rate-modal')
+- Tax-state verification: getByRole('checkbox', { name: 'Show with taxes and fees' })
+
+The corporate-rate radio input was visually covered by its label; clicking the displayed Corp/Promo Code label worked. The taxes-and-fees control's visible label was clicked successfully. Nested/duplicate controls and dynamic homepage re-rendering made some raw references obsolete. Scope locators to the relevant dialog, room, and rate rather than assuming the first global match is correct.
+
+## Booking link format and clean-session verification
+
+The search UI generated /search/findHotels.mi with fromDate, toDate, clusterCode=corp, corporateCode=MMP, and destinationAddress.destination parameters. Property View Rates links pointed to /search/availabilityCalendar.mi with propertyCode.
+
+A property link assembled from these observed parameter names was opened in a new browser context without inherited cookies. It returned HTTP 200 and landed on the correct property with the requested dates, three nights, one room, one guest, and MMP visibly prefilled:
+
+https://www.marriott.com/search/availabilityCalendar.mi?propertyCode=NYCRL&isSearch=true&fromDate=10%2F26%2F2026&toDate=10%2F29%2F2026&clusterCode=corp&corporateCode=MMP&numAdultsPerRoom=1&roomCount=1&showFullPrice=true
+
+Reusable candidate format:
+
+    https://www.marriott.com/search/availabilityCalendar.mi?propertyCode={PROPERTY_CODE}&isSearch=true&fromDate={MM%2FDD%2FYYYY}&toDate={MM%2FDD%2FYYYY}&clusterCode=corp&corporateCode=MMP&numAdultsPerRoom={ADULTS}&roomCount={ROOMS}
+
+Only the listed NYCRL sample has passed this clean-session check. Each new or changed candidate must be reopened and verified individually before publication.
+
+The resulting address was https://www.marriott.com/reservation/rateListMenu.mi. That address alone omits the property, dates, and code; do not store it as a portable booking link.
+
+The showFullPrice=true parameter did not enable taxes-and-fees display in the fresh context. The checker must inspect and set the actual checkbox. Do not assume URL parameters control display state.
+
+## Google Maps benchmark commute
+
+Origin: Residence Inn by Marriott Jersey City, 80 Christopher Columbus Dr, Jersey City, NJ 07302.
+
+Destination: 230 Vesey St, New York, NY 10281.
+
+Mode: transit. Date: Monday October 26, 2026. Arrival setting: 9:00am, local New York time.
+
+Google Maps displayed an 18-minute timed itinerary, departing 8:41am and arriving 8:59am:
+
+| Segment | Evidence from Google Maps |
+| --- | --- |
+| Hotel to Grove Street | About 2 minutes walking, 351 feet |
+| Grove Street to World Trade Center | PATH, 8:43am to 8:51am; 8 minutes, 2 stops |
+| World Trade Center to destination | About 8 minutes walking, 0.3 mile |
+| Door-to-door scheduled duration | 18 minutes |
+| Transfers | None |
+
+The itinerary includes both walks. It is timed to a scheduled train and does not show a separate ordinary waiting allowance. Nearby displayed departures were five minutes apart. A production commute policy must capture routine wait/transfer evidence instead of describing this tightly timed itinerary as a measured ordinary-wait total. Do not replace missing evidence with an unlabeled estimate.
+
+Entry link:
+
+https://www.google.com/maps/dir/?api=1&origin=Residence+Inn+by+Marriott+Jersey+City%2C+80+Christopher+Columbus+Drive%2C+Jersey+City%2C+NJ&destination=230+Vesey+Street%2C+New+York%2C+NY&travelmode=transit
+
+The entry link defaults to Leave now. Explicitly choose Arrive by, enter 9:00 AM, and set the weekday before reading results.
+
+Time-specific observed route link:
+
+https://www.google.com/maps/dir/Residence+Inn+by+Marriott+Jersey+City,+80+Christopher+Columbus+Dr,+Jersey+City,+NJ+07302/230+Vesey+St,+New+York,+NY+10281/@40.7194593,-74.0476978,14z/am=t/data=!4m18!4m17!1m5!1m1!1s0x89c250ae0a76a127:0x1f127c0e6199930e!2m2!1d-74.0409582!2d40.7191013!1m5!1m1!1s0x89c25a1b0cd3c8cb:0xe84d008d21ac0f87!2m2!1d-74.0156903!2d40.7124742!2m3!6e1!7e2!8j1793005200!3e3
+
+Future commute records must be keyed by hotel, exact destination, transit mode, weekday/arrival policy, and verification date. Recheck at least monthly and whenever a new hotel or destination is introduced.
+
+## Production procedure after the prerequisites are resolved
+
+This procedure is required behavior, not a statement that a checker is installed.
+
+1. Fetch active criteria and preserve their verbatim text alongside structured fields. Treat unresolved free-text rules as questions; do not broaden eligibility silently.
+2. Generate check-in windows in America/New_York. Criteria 1 allows check-in today through today + 28 days, inclusive, with preferred three-night Sunday/Monday/Tuesday starts and backup two-night Sunday/Monday/Tuesday/Wednesday starts. For the October 25 sample date, the latest permissible check-in is November 22. Checkouts may fall after that boundary; the boundary applies to check-in. Exclude Friday-night stays and split bookings.
+3. Criteria 2 searches one-night stays starting December 22 through 26, 2026, inclusive, checking out by December 27. It has an USD 80 cap including taxes and mandatory fees. Criteria 1 has an USD 70 average-nightly cap before taxes and must display the full final total.
+4. Search Lower Manhattan, Jersey City, Hoboken, Newark near Penn/PATH, Brooklyn, and Long Island City/Queens. Do not eliminate a property solely by straight-line distance.
+5. Require an exact accepted rate name, dates, code, occupancy, all mandatory fees, and the appropriate price basis. Fail closed on unrecognized names, fallback warnings, partial data, rounded amounts near a cap, or missing exact totals.
+6. Resolve each commute using fresh or valid monthly Google Maps evidence for the exact destination, weekday, and arrival time, including walks, ordinary waits, and transfers. The limit is strictly less than 45 minutes.
+7. Rank windows per hotel: preferred duration tier, then lowest full-stay total. Keep one card per hotel per set; retain other verified windows as links.
+8. The supervising agent independently opens each new/changed booking link in a fresh context and confirms property, dates, MMP, exact accepted rate, prices, and route evidence before publication.
+9. Commit a successful set refresh atomically: replace that set's matches and compute new/removed/dates-changed against its previous successful result. Never turn a failed or partial search into a successful empty result.
+10. On any set failure, retain its prior matches, mark them stale using their original verification time, and record a scoped error and run history. Pause/delete changes made during a run must prevent obsolete results from reappearing.
+11. Read back the saved run and listings from the deployed database. A local data file or a successful script exit is not a verified cloud refresh.
+
+Future delegated search tasks must contain the exact accepted/rejected names, cap and tax basis, commute policy, date windows, and a strict result schema with source evidence. This environment does not expose Sonnet as a subagent model; do not claim Sonnet delegation was performed.
+
+## Deployment and operations acceptance checklist
+
+- Owner-private mobile/desktop dashboard, light/dark modes, criteria CRUD/pause, evidence cards, and working images.
+- Shared persistent criteria, listings, run history, run requests, and commute cache; no hardcoded live listings.
+- Authenticated writer usable by a fresh scheduled session without credentials embedded in page source.
+- Separate tests of source access, cloud writer authorization, and persisted readback.
+- Actual scheduled runs timed ahead of 8:00am and 8:00pm America/New_York, with daylight saving handled and no claim that job creation guarantees timely completion.
+- Working phone trigger with requested/running/finished/error state, deduplication, and failure reporting. A recorded request is not proof that a worker wakes to handle it.
+- Full check for both sets, independently verified new/changed matches, and measured end-to-end runtime.
+- Committed and pushed source, this runbook, selectors, rate/banners registry, schema, and migrations. Fresh runs must not depend on uncommitted local files.
+
+Use the live Site state for the shipped schedule and check status. The cloud source restriction and incomplete exact-rate evidence remain operational limitations until a successful full check proves otherwise.
+
+## Rollback and recovery
+
+Preserve prior successful results and a source revision for recovery. Restore a prior version only after checking database migration compatibility; never erase listings to conceal a source failure.
+
+For a source restriction, stop and ask the user to choose an allowed continuation. A Mac-based browser checker can be evaluated separately with a cloud dashboard if the user chooses that path; it is not permission to bypass an access restriction or sign in.
+
+For a platform mismatch, use the user's deployment choice before provisioning. For a missing repository, obtain the repository URL rather than creating or pushing to an arbitrary account/repository.
+
+## Additional holiday sample
+
+On October 25, the local collector also opened Courtyard by Marriott New York World Trade Center Area for December 22–23, 2026. Its combined Associate/Friends rate displayed USD 324 per night with taxes and fees enabled, above the USD 80 cap. Its generic eligibility terms mentioned both associates and friends; they did not establish a distinct Associate-priced offer. This was a sample, not a complete holiday search.
+
+The rate-details selector must include both aria-label=dialogTitle and aria-describedby=rateDetailsContent, and visibility. The site contains multiple hidden destination-fee dialogs using the same generic label.
