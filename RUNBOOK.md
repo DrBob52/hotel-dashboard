@@ -59,6 +59,9 @@ refuses the request itself:
   HTTP 403 "Access Denied" on `https://www.marriott.com/default.mi` and on a
   `search/findHotels.mi` URL. The denial is immediate, with no JS challenge.
 
+- `cache.marriott.com` (hotel photos) answers HTTP 403 `AkamaiGHost` to the
+  cloud container as well, so thumbnails must also be fetched on the Mac.
+
 Per the source rules, the checker does **not** try to get around this: no
 stealth plugins, no user-agent spoofing, no CAPTCHA solving, no proxy
 rotation. If a run sees this page it stops, marks the affected criteria sets'
