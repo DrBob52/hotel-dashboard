@@ -6,7 +6,7 @@ The Sites access policy was read back as custom with only the owner allowed. Sha
 
 Cloud schedule: MMP hotel rate checks, ID Automation_6a94f2faa7808191bac54fad619400b9. Saved enabled for 7:30am and 7:30pm America/New_York, targeting results by 8:00am/8:00pm. Creation is confirmed; no successful fresh scheduled run has been verified. The native creation response had no task URL and no next-run timestamp.
 
-Manual trigger: queue creation and deduplication work. The task-page fallback is incomplete because no actual task URL has been returned or verified. The browser is logged out of ChatGPT, so its Run now control could not be tested. The dashboard explicitly distinguishes a saved request from a running check.
+Manual checks use two steps: save a request on the dashboard, then open ChatGPT → Scheduled → MMP hotel rate checks → Run now. No task-specific URL is required. Queue creation, deduplication, claim, and failure persistence were verified. Direct invocation from the Site is not exposed by the available integration. The user confirmed the task exists; a fresh scheduled-task execution and successful full search remain unverified. The dashboard distinguishes a saved request from a running check.
 
 Initial hosted verification attempt: run 256facdc-9c36-4143-8ffc-c24de2dd2868 ended failed, with Lower Manhattan blocked and holidays incomplete. No complete full search or verified hotel match has been claimed. Full-check duration is unknown. Source observations and limitations are recorded in RUNBOOK.md.
 

@@ -18,4 +18,4 @@ Validation: `node --test scripts/watch-domain.test.mjs` and `npx tsc --noEmit`.
 
 The authenticated `/api/worker` service endpoint and OAuth `/mcp` transport expose watch_snapshot, watch_request_check, watch_begin_run, watch_finish_run, watch_configure_schedule, watch_cache_commute, and watch_cache_thumbnail. No secret is in browser code. Future tasks use the connected Site plugin or supported service access; do not store tokens in files or prompts.
 
-A phone run request is queued separately from worker startup. When a hosted task URL is configured, the button opens that task for a second Run now tap. A queued request must never be reported as a running check.
+Phone checks use two steps: tap Run check now on the dashboard to save a request, then open ChatGPT → Scheduled → MMP hotel rate checks and choose Run now. No task-specific URL is required. A queued request must never be reported as a running check. Direct invocation from the Site is not provided by the available task integration; an independently verified task URL may optionally be configured in future.

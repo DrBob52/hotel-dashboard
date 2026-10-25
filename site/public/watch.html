@@ -818,12 +818,13 @@ table.stay-grid th[scope="row"] { text-align: left; color: var(--ink); font-size
       const total = S.criteria.filter((c) => !c.paused).length;
       msg = { kind: '', text: `Started ${fmtClock(r.startedAt || r.requestedAt)}${total ? ` · ${done} of ${total} sets done` : ''}` };
     } else if (!msg && active) {
-      msg = { kind: 'warn', text: `Requested ${fmtClock(r.requestedAt)}. Waiting for the checker to start.`, link: safeHttps(S.config?.schedule?.taskUrl), linkText: 'Open task → Run now' };
+      msg = { kind: 'warn', text: `Requested ${fmtClock(r.requestedAt)}. To start now, open ChatGPT → Scheduled → MMP hotel rate checks → Run now.`, link: safeHttps(S.config?.schedule?.taskUrl), linkText: 'Open task → Run now' };
     } else if (!msg && r && r.status === 'not_started') {
       msg = { kind: 'warn', text: `The request at ${fmtClock(r.requestedAt)} didn't start a check.` };
     } else if (!msg && r && r.status === 'requested' && !active) {
       msg = { kind: 'warn', text: `The request at ${fmtClock(r.requestedAt)} was never picked up.` };
     }
+    if (!msg && S.config?.schedule?.enabled) msg = { kind: '', text: 'To check now: request here, then open ChatGPT → Scheduled → MMP hotel rate checks → Run now.' };
     note.replaceChildren();
     if (msg) {
       note.className = `runnote ${msg.kind || ''}`;
@@ -1045,7 +1046,7 @@ table.stay-grid th[scope="row"] { text-align: left; color: var(--ink); font-size
       if (!res.ok) throw new Error(data.error || 'Could not request a check');
       await S.db.refresh();
       const taskUrl = safeHttps(data.taskUrl);
-      S.ui.runMsg = {kind:'warn', text: taskUrl ? 'Request saved. Open the scheduled task and tap Run now to start it.' : 'Request saved. An on-demand worker is not connected yet; this is queued, not running.', link:taskUrl, linkText:'Open task → Run now'};
+      S.ui.runMsg = {kind:'warn', text: taskUrl ? 'Request saved. Open the scheduled task and tap Run now to start it.' : 'Request saved. Open ChatGPT → Scheduled → MMP hotel rate checks and choose Run now. The request is queued until the task starts.', link:taskUrl, linkText:'Open task → Run now'};
       if (taskUrl) window.open(taskUrl, '_blank', 'noopener');
     } catch (e) { S.ui.runMsg = {kind:'bad',text:e.message}; }
     S.ui.runBusy = false; renderBoard();
